@@ -1,50 +1,47 @@
-# DuckDB 2.0.0 + Node API: ARMv7 / Debian 11 Bullseye scaffold
+# DuckDB 2.0.0 ARMv7 cross-build on Ubuntu 22.04
 
-This repository is a **cross-build scaffold**, not a verified release pipeline.
-Target: Debian 11 Bullseye, `armhf` / ARMv7 hard-float, glibc 2.31, Node.js 20.
+This scaffold builds on a GitHub Actions `ubuntu-22.04` runner. It does not
+install Docker, does not run Debian, and does not create a Debian sysroot.
 
-## What is included
+Target CPU/ABI: 32-bit ARMv7 hard-float (`arm-linux-gnueabihf`).
+Build host: Ubuntu 22.04 x86_64.
 
-- Bullseye-based Docker build environment with the Debian ARMHF cross compiler.
-- CMake toolchain for `arm-linux-gnueabihf`.
-- A DuckDB 2.0.0 build script that requests the custom platform `linux_armv7`.
-- A GitHub Actions workflow that runs the build and uploads the output.
-- An extension configuration file showing the intended `json` / `quack` configuration.
+## Included
 
-## Important limitations (read before relying on the output)
+- Ubuntu 22.04 GitHub Actions workflow.
+- ARMHF cross compiler installation via apt.
+- DuckDB v2.0.0 source checkout and cross-build.
+- JSON extension build configuration.
+- Quack source checkout and out-of-tree extension configuration.
+- ELF inspection of produced artifacts.
 
-1. `linux_armv7` is a custom platform identifier, not an officially distributed DuckDB platform.
-2. The `quack` extension must be verified against the exact DuckDB 2.0.0 source revision. The extension config is an initial attempt; the build is expected to fail if that source tree does not expose Quack as a built-in extension target.
-3. The Node native binding is **not yet built by this scaffold**. The upstream `duckdb-node-neo` binding currently lacks Linux 32-bit ARM support and downloads official prebuilt DuckDB libraries for supported architectures. A real ARMv7 implementation needs changes to its loader, package metadata, `binding.gyp`, and fetch/build logic.
-4. The cross compiler and target sysroot are from Debian Bullseye. Still validate the resulting binary on the actual target device; checking ELF metadata alone does not prove runtime compatibility.
-5. The Docker image uses archived Debian repositories as Bullseye is now an old release. Package availability may change.
+## Important: this is not a finished Node.js binary release
 
-Do not publish the resulting artifacts as production binaries until the extension build, dynamic dependencies, and runtime tests have passed on ARMv7.
+The workflow currently builds DuckDB and extension artifacts. It does not
+produce `duckdb.node` yet. Upstream `duckdb-node-neo` does not currently ship
+a Linux 32-bit ARM target; its GYP target, loader, npm platform package and
+library-fetch logic need an ARM port. See `patches/NODE-ARMV7.md`.
 
-## Run locally
+Quack is experimental and maintained out-of-tree. This scaffold checks out
+its current default branch unless `QUACK_REF` is pinned. For a reproducible
+release, set `QUACK_REF` to a tested commit SHA and confirm that commit is
+compatible with DuckDB v2.0.0. Quack also needs target-architecture OpenSSL;
+the workflow installs Ubuntu's ARMHF OpenSSL development package.
 
-```bash
-docker build -t duckdb-armv7-builder .
-docker run --rm -v "$PWD/out:/out" duckdb-armv7-builder
+## Run
+
+Push this repository to GitHub and run **Actions → Build DuckDB ARMv7**.
+Artifacts are uploaded as `duckdb-2.0.0-linux-armv7-ubuntu2204`.
+
+## Output validation
+
+The workflow records ELF headers and dynamic dependencies. Before using the
+files on a device, run them on the actual ARMv7 system and test:
+
+```sql
+LOAD json;
+LOAD quack;
 ```
 
-The build script clones DuckDB tag `v2.0.0` and writes artifacts under `/out`.
-
-## GitHub Actions
-
-Push this repository to GitHub. The workflow `.github/workflows/build-armv7.yml`
-runs on pushes and can also be started manually. It uploads the build directory
-as a workflow artifact.
-
-## Runtime validation on the ARMv7 device
-
-After copying the artifacts to the Debian 11 device:
-
-```bash
-file ./duckdb
-readelf -h ./libduckdb.so
-readelf --version-info ./libduckdb.so
-ldd ./libduckdb.so
-```
-
-Then run a minimal DuckDB query and explicitly test loading both extensions.
+Do not strip `.duckdb_extension` files: DuckDB appends compatibility metadata
+to extension binaries.

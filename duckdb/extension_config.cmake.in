@@ -1,0 +1,5 @@
+duckdb_extension_load(json)
+
+# Quack is an out-of-tree extension. QUACK_SOURCE_DIR is passed by the
+# build script after cloning duckdb/duckdb-quack.
+duckdb_extension_load(quack SOURCE_DIR "@QUACK_SOURCE_DIR@")

@@ -1,4 +1,4 @@
-name: Build DuckDB ARMv7 (Bullseye)
+name: Build DuckDB ARMv7 on Ubuntu 22.04
 
 on:
   workflow_dispatch:
@@ -6,24 +6,41 @@ on:
     branches: [ main ]
 
 jobs:
-  duckdb-armv7:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      QUACK_REF: main
+      OUT_DIR: ${{ github.workspace }}/out
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Bullseye cross-builder image
-        run: docker build -t duckdb-armv7-builder .
-
-      - name: Build DuckDB
+      - name: Install Ubuntu host tools and ARMHF cross compiler
         run: |
-          mkdir -p "$PWD/out"
-          docker run --rm \
-            -v "$PWD/out:/out" \
-            duckdb-armv7-builder
+          sudo dpkg --add-architecture armhf
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build make git python3 \
+            ca-certificates pkg-config \
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+            binutils-arm-linux-gnueabihf \
+            libssl-dev:armhf
+
+      - name: Show compiler target
+        run: |
+          arm-linux-gnueabihf-gcc -v
+          arm-linux-gnueabihf-gcc -print-sysroot
+          arm-linux-gnueabihf-g++ -print-search-dirs
+
+      - name: Build DuckDB and extensions
+        run: |
+          chmod +x scripts/build.sh
+          scripts/build.sh
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: duckdb-2.0.0-linux-armv7-bullseye
+          name: duckdb-2.0.0-linux-armv7-ubuntu2204
           path: out/
           if-no-files-found: error
