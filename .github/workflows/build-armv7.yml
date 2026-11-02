@@ -1,0 +1,29 @@
+name: Build DuckDB ARMv7 (Bullseye)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  duckdb-armv7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Bullseye cross-builder image
+        run: docker build -t duckdb-armv7-builder .
+
+      - name: Build DuckDB
+        run: |
+          mkdir -p "$PWD/out"
+          docker run --rm \
+            -v "$PWD/out:/out" \
+            duckdb-armv7-builder
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-2.0.0-linux-armv7-bullseye
+          path: out/
+          if-no-files-found: error
